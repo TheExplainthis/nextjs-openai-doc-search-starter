@@ -21,3 +21,92 @@ One interesting use case of `pgvector` is to use it in conjunction with OpenAI e
 For example, let's say you have a database of customer reviews and you want to find all the reviews that mention a particular product. You could use OpenAI embeddings to represent each review as a vector and store these vectors in a pgvector column. Then, you could perform a similarity search to find all the reviews that are similar to the vector representing the product name.
 
 This approach can be very powerful for applications that involve large amounts of text data, as it allows you to perform complex queries on the data using vector operations. However, it does require some additional setup and configuration compared to traditional SQL queries, so it may not be suitable for all use cases.
+
+Fine-tuning
+Learn how to customize a model for your application.
+
+Introduction
+On July 6, 2023, we announced the deprecation of ada, babbage, curie and davinci models. These models, including fine-tuned versions, will be turned off on January 4, 2024. We are actively working on enabling fine-tuning for upgraded base GPT-3 models as well as GPT-3.5 Turbo and GPT-4, we recommend waiting for those new options to be available rather than fine-tuning based off of the soon to be deprecated models.
+Fine-tuning lets you get more out of the models available through the API by providing:
+
+Higher quality results than prompt design
+Ability to train on more examples than can fit in a prompt
+Token savings due to shorter prompts
+Lower latency requests
+GPT-3 has been pre-trained on a vast amount of text from the open internet. When given a prompt with just a few examples, it can often intuit what task you are trying to perform and generate a plausible completion. This is often called "few-shot learning."
+
+Fine-tuning improves on few-shot learning by training on many more examples than can fit in the prompt, letting you achieve better results on a wide number of tasks. Once a model has been fine-tuned, you won't need to provide examples in the prompt anymore. This saves costs and enables lower-latency requests.
+
+At a high level, fine-tuning involves the following steps:
+
+Prepare and upload training data
+Train a new fine-tuned model
+Use your fine-tuned model
+Visit our pricing page to learn more about how fine-tuned model training and usage are billed.
+
+What models can be fine-tuned?
+We are working on safely enabling fine-tuning for GPT-4 and GPT-3.5 Turbo and expect this feature to be available later this year.
+Fine-tuning is currently only available for the following base models: davinci, curie, babbage, and ada. These are the original models that do not have any instruction following training (like text-davinci-003 does for example). You are also able to continue fine-tuning a fine-tuned model to add additional data without having to start from scratch.
+
+Installation
+We recommend using our OpenAI command-line interface (CLI). To install this, run
+
+pip install --upgrade openai
+(The following instructions work for version 0.9.4 and up. Additionally, the OpenAI CLI requires python 3.)
+
+Set your OPENAI_API_KEY environment variable by adding the following line into your shell initialization script (e.g. .bashrc, zshrc, etc.) or running it in the command line before the fine-tuning command:
+
+export OPENAI_API_KEY="<OPENAI_API_KEY>"
+Prepare training data
+Training data is how you teach GPT-3 what you'd like it to say.
+
+Your data must be a JSONL document, where each line is a prompt-completion pair corresponding to a training example. You can use our CLI data preparation tool to easily convert your data into this file format.
+
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+...
+Designing your prompts and completions for fine-tuning is different from designing your prompts for use with our base models (Davinci, Curie, Babbage, Ada). In particular, while prompts for base models often consist of multiple examples ("few-shot learning"), for fine-tuning, each training example generally consists of a single input example and its associated output, without the need to give detailed instructions or include multiple examples in the same prompt.
+
+For more detailed guidance on how to prepare training data for various tasks, please refer to our preparing your dataset best practices.
+
+The more training examples you have, the better. We recommend having at least a couple hundred examples. In general, we've found that each doubling of the dataset size leads to a linear increase in model quality.
+
+CLI data preparation tool
+We developed a tool which validates, gives suggestions and reformats your data:
+
+openai tools fine_tunes.prepare_data -f <LOCAL_FILE>
+This tool accepts different formats, with the only requirement that they contain a prompt and a completion column/key. You can pass a CSV, TSV, XLSX, JSON or JSONL file, and it will save the output into a JSONL file ready for fine-tuning, after guiding you through the process of suggested changes.
+
+Create a fine-tuned model
+The following assumes you've already prepared training data following the above instructions.
+
+Start your fine-tuning job using the OpenAI CLI:
+
+openai api fine_tunes.create -t <TRAIN_FILE_ID_OR_PATH> -m <BASE_MODEL>
+Where BASE_MODEL is the name of the base model you're starting from (ada, babbage, curie, or davinci). You can customize your fine-tuned model's name using the suffix parameter.
+
+Running the above command does several things:
+
+Uploads the file using the files API (or uses an already-uploaded file)
+Creates a fine-tune job
+Streams events until the job is done (this often takes minutes, but can take hours if there are many jobs in the queue or your dataset is large)
+Every fine-tuning job starts from a base model, which defaults to curie. The choice of model influences both the performance of the model and the cost of running your fine-tuned model. Your model can be one of: ada, babbage, curie, or davinci. Visit our pricing page for details on fine-tune rates.
+
+After you've started a fine-tune job, it may take some time to complete. Your job may be queued behind other jobs on our system, and training our model can take minutes or hours depending on the model and dataset size. If the event stream is interrupted for any reason, you can resume it by running:
+
+openai api fine_tunes.follow -i <YOUR_FINE_TUNE_JOB_ID>
+When the job is done, it should display the name of the fine-tuned model.
+
+In addition to creating a fine-tune job, you can also list existing jobs, retrieve the status of a job, or cancel a job.
+
+# List all created fine-tunes
+openai api fine_tunes.list
+
+# Retrieve the state of a fine-tune. The resulting object includes
+# job status (which can be one of pending, running, succeeded, or failed)
+# and other information
+openai api fine_tunes.get -i <YOUR_FINE_TUNE_JOB_ID>
+
+# Cancel a job
+openai api fine_tunes.cancel -i <YOUR_FINE_TUNE_JOB_ID>
